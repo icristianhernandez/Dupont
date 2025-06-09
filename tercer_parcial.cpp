@@ -1173,8 +1173,10 @@ class Factory {
     }
 
     void update_mix() {
-        // Check if we should start mixing: all required pumps completed and mixer not running
-        if (all_required_pumps_completed() && !mixer_tank_.get_mixer_motor().is_running()) {
+        // ENHANCED MIXING CONTROL: Complete check to avoid premature mixing 
+        // Ensures all base colors are fully pumped before mixing starts
+        // Addresses issue where mixer could start when pumps are paused (flow alarms, pressure issues)
+        if (can_start_mixing() && !mixer_tank_.get_mixer_motor().is_running()) {
             // Start mixing if there's liquid in the tank and batch is in process
             if (mixer_tank_.get_current_capacity() > 0 && batch_in_process_) {
                 mixer_tank_.get_mixer_motor_mutable().start();
@@ -1263,6 +1265,59 @@ class Factory {
         
         return true;
     }
+
+    bool can_start_mixing() const {
+        // Complete check to avoid premature mixing before all base colors are fully pumped
+        // This method enforces that mixing cannot start while pumps are in paused states
+        
+        for (map<string, PumpLine>::const_iterator it = pump_lines_.begin(); 
+             it != pump_lines_.end(); ++it) {
+            const PumpLine& pump_line = it->second;
+            const LiquidPump& pump = pump_line.get_pump();
+            
+            // Skip pumps with no target (target duration = 0) - not required for this batch
+            if (pump.get_target_duration() <= 0) {
+                continue;
+            }
+            
+            // CRITICAL CHECK: Ensure target time > 0 and elapsed time >= target time
+            // This prevents mixing when pumps have not reached their pumping goals
+            if (pump.get_elapsed_seconds() < pump.get_target_duration()) {
+                return false; // This pump hasn't finished pumping its required amount
+            }
+            
+            // CRITICAL CHECK: Ensure pumps are not just paused but actually completed
+            // Pumps in STOPPED_FLOW_ALARM, STOPPED_HIGH_PRESSURE, or STOPPED_LOW_PRESSURE
+            // are paused and may restart - mixing must wait for them to complete or be permanently stopped
+            PumpState state = pump.get_state();
+            if (state == STOPPED_FLOW_ALARM || 
+                state == STOPPED_HIGH_PRESSURE || 
+                state == STOPPED_LOW_PRESSURE) {
+                // Pump is paused but not permanently stopped - could potentially restart
+                // Check if pump can still continue (valves open and has remaining target time)
+                if (pump_line.get_enter_valve().is_open() && 
+                    pump_line.get_exit_valve().is_open()) {
+                    return false; // Pump could restart, don't mix yet
+                }
+                // If valves are closed, pump is effectively permanently stopped
+                // Continue checking other pumps
+            }
+            
+            // CRITICAL CHECK: Running pumps must not be interrupted by mixing
+            if (state == RUNNING) {
+                return false; // Pump is still actively pumping
+            }
+            
+            // At this point, pump has either:
+            // 1. Reached target (STOPPED_TARGET_REACHED) - OK to mix
+            // 2. Is permanently unable to continue due to closed valves - OK to mix
+        }
+        
+        // All checks passed - safe to start mixing
+        return true;
+    }
+
+    // ...existing code...
 };
 
 class UserInterface {
