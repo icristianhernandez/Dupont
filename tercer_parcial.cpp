@@ -668,6 +668,10 @@ class MixerMotor {
         elapsed_time_ = 0.0; // Reset elapsed time when starting
     }
     void stop() { is_on_ = false; }
+    void reset() { 
+        is_on_ = false; 
+        elapsed_time_ = 0.0; // Reset elapsed time completely
+    }
     bool is_running() const { return is_on_; }
     const string &get_code() const { return code_; }
     double get_elapsed_time() const { return elapsed_time_; }
@@ -693,6 +697,10 @@ class MixerTank {
     double current_capacity_;
     double max_capacity_;
     string code_;
+    // Emptying timer variables
+    bool emptying_active_;
+    double emptying_elapsed_time_;
+    double emptying_rate_percent_per_second_;
 
     void update_low_level_switch() {
         double level_percent = (current_capacity_ / max_capacity_) * 100.0;
@@ -711,7 +719,9 @@ class MixerTank {
         : level_transmitter_(level_transmitter_code),
           low_level_switch_(code, SystemConstants::ALARM_STATUS),
           mixer_motor_(code), current_capacity_(initial_capacity),
-          max_capacity_(max_capacity), code_(code) {
+          max_capacity_(max_capacity), code_(code),
+          emptying_active_(false), emptying_elapsed_time_(0.0),
+          emptying_rate_percent_per_second_(4.0) {
         if (code.empty()) {
             throw invalid_argument("MixerTank code cannot be empty");
         }
@@ -749,6 +759,50 @@ class MixerTank {
         update_low_level_switch();
     }
 
+    void start_emptying() {
+        emptying_active_ = true;
+        emptying_elapsed_time_ = 0.0;
+    }
+
+    void stop_emptying() {
+        emptying_active_ = false;
+        emptying_elapsed_time_ = 0.0;
+    }
+
+    bool is_emptying() const {
+        return emptying_active_;
+    }
+
+    double get_emptying_elapsed_time() const {
+        return emptying_elapsed_time_;
+    }
+
+    double update_emptying_progress(double elapsed_seconds) {
+        if (!emptying_active_ || current_capacity_ <= 0) {
+            if (current_capacity_ <= 0) {
+                stop_emptying();
+            }
+            return 0.0;
+        }
+        
+        emptying_elapsed_time_ += elapsed_seconds;
+        
+        double amount_to_drain = (max_capacity_ * emptying_rate_percent_per_second_ / 100.0) * elapsed_seconds;
+        double actually_drained;
+        
+        if (current_capacity_ >= amount_to_drain) {
+            actually_drained = amount_to_drain;
+            current_capacity_ -= amount_to_drain;
+        } else {
+            actually_drained = current_capacity_;
+            current_capacity_ = 0.0;
+            stop_emptying(); // Automatically stop when empty
+        }
+        
+        update_low_level_switch();
+        return actually_drained;
+    }
+
     double empty_tank(double empty_rate_percent_per_second = 4.0) {
         if (current_capacity_ <= 0) {
             return 0.0;
@@ -771,6 +825,11 @@ class MixerTank {
 
     bool is_empty() const {
         return current_capacity_ <= 0.0;
+    }
+
+    void reset_emptying() {
+        emptying_active_ = false;
+        emptying_elapsed_time_ = 0.0;
     }
 
     LowLevelSwitch &get_low_level_switch_mutable() { return low_level_switch_; }
@@ -874,7 +933,7 @@ class Factory {
                 pump_line.get_exit_valve().is_open() &&  // Check outlet valve
                 (pump.get_elapsed_seconds() < pump.get_target_duration())) {
                 double flow_rate = pump.get_flow_rate(); // lts/min
-                double liters_this_cycle = flow_rate * (seconds / 60.0); // Assuming 'seconds' is the time step for the simulation cycle
+                double liters_this_cycle = flow_rate / 60.0 * seconds;
                 double drained = tank.drain(liters_this_cycle);
                 mixer_tank_.add_liquid(drained);
             }
@@ -936,7 +995,10 @@ class Factory {
             pump_line.get_exit_valve_mutable().set_open(true);
         }
         emptying_in_process_ = false;
-        mixer_tank_.get_mixer_motor_mutable().stop(); // Reset mixer motor
+        // Reset mixer motor completely
+        mixer_tank_.get_mixer_motor_mutable().reset();
+        // Reset emptying timer
+        mixer_tank_.reset_emptying();
     }
 
     bool pump_lines_need_to_pump() const {
@@ -966,13 +1028,15 @@ class Factory {
             // Check if mixing is complete - ONLY start emptying after mixing is finished
             if (!mixer_tank_.get_mixer_motor().is_running() && mixer_tank_.get_current_capacity() > 0) {
                 emptying_in_process_ = true;
+                mixer_tank_.start_emptying(); // Start the emptying timer
             }
         }
     }
 
     void update_emptying() {
         if (emptying_in_process_) {
-            mixer_tank_.empty_tank(4.0); // 4% per second as specified
+            // Use the new timer-based emptying system
+            mixer_tank_.update_emptying_progress(1.0);
             
             // Check if tank is empty - finish batch process
             if (mixer_tank_.is_empty()) {
@@ -1175,6 +1239,10 @@ class UserInterface {
              << mixer_motor.get_elapsed_time() << "s" << endl;
         cout << "  Tiempo objetivo de mezcla: " << mixer_motor.get_target_time()
              << "s" << endl;
+        cout << "  Estado de vaciado: "
+             << (mixer_tank.is_emptying() ? "VACIANDO" : "DETENIDO") << endl;
+        cout << "  Tiempo de vaciado transcurrido: "
+             << mixer_tank.get_emptying_elapsed_time() << "s" << endl;
         cout << "  Interruptor bajo nivel: "
              << (mixer_tank.get_low_level_switch().is_alarm() ? "ALARMA"
                                                               : "NORMAL")
@@ -1263,6 +1331,7 @@ int main() {
         bool is_running = true;
         SystemConfig user_config;
         string previous_arranque_state = "OFF";
+        string previous_color = ""; // Track previous color to detect changes
 
         Factory factory = Factory::create_dupont_paint_factory();
 
@@ -1284,6 +1353,13 @@ int main() {
 
             // Apply valve configuration from config file
             factory.apply_valve_configuration(user_config);
+
+            // Check for color change when not in batch process
+            bool color_changed = (previous_color != user_config.color_a_mezclar);
+            if (color_changed && !factory.is_batch_in_process()) {
+                // Update pump times immediately when color changes (but not during batch)
+                factory.set_pump_times(user_config.color_a_mezclar);
+            }
 
             // Check for batch start command (OFF to ON transition)
             bool start_command_triggered = (previous_arranque_state == "OFF" && 
@@ -1326,6 +1402,7 @@ int main() {
             }
 
             previous_arranque_state = user_config.arranque_de_fabricacion; // Update previous state
+            previous_color = user_config.color_a_mezclar; // Update previous color
             
             factory.update_mix(); // Update mixing process
             factory.update_emptying(); // Update emptying process
