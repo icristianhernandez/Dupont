@@ -19,6 +19,7 @@ const bool NORMAL_STATUS = true;
 const bool ALARM_STATUS = false;
 const int ONE_SECOND_IN_MS = 1000;
 const double INITIAL_TANK_CAPACITY = 20000.0;
+const double MIXER_TANK_CAPACITY = 200.0;  // Mixer tank capacity as per requirements
 const double INITIAL_BASE_TANK_LEVELS = 25.0;
 const double INITIAL_MIXER_TANK_LEVEL = 0.0;
 const double NORMAL_OPERATING_PRESSURE = 33.0;
@@ -705,7 +706,7 @@ class MixerTank {
   public:
     MixerTank(const string &code,
               const string &level_transmitter_code,
-              double max_capacity = SystemConstants::INITIAL_TANK_CAPACITY,
+              double max_capacity = SystemConstants::MIXER_TANK_CAPACITY,
               double initial_capacity = 0.0)
         : level_transmitter_(level_transmitter_code),
           low_level_switch_(code, SystemConstants::ALARM_STATUS),
@@ -788,7 +789,7 @@ class Factory {
         : batch_in_process_(false), emptying_in_process_(false),
           mixer_tank_("M401",
                       "LT401",
-                      SystemConstants::INITIAL_TANK_CAPACITY,
+                      SystemConstants::MIXER_TANK_CAPACITY,
                       SystemConstants::INITIAL_MIXER_TANK_LEVEL) {
         if (pump_lines.empty()) {
             throw runtime_error("Factory must have at least one pump line");
