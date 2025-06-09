@@ -35,8 +35,8 @@ static map<string, map<string, double> > create_color_recipes() {
     map<string, map<string, double> > recipes;
     
     map<string, double> az_marino;
-    az_marino["Azul"] = 2.0 / 3.0;
-    az_marino["Negro"] = 1.0 / 3.0;
+    az_marino["Negro"] = 2.0 / 3.0;  // 2 parts Negro (100 lts for 150 lts batch)
+    az_marino["Azul"] = 1.0 / 3.0;   // 1 part Azul (50 lts for 150 lts batch)
     recipes["AzMarino"] = az_marino;
     
     map<string, double> az_celeste;
@@ -414,6 +414,7 @@ class LiquidPump {
 
     void update_pump_state(const FlowSwitch &flow_switch,
                            double current_pressure) {
+        // Check stop conditions first
         if (should_stop_for_alarm(flow_switch)) {
             stop(STOPPED_FLOW_ALARM);
             return;
@@ -429,8 +430,19 @@ class LiquidPump {
             return;
         }
 
-        if (!is_on_ && can_start_for_pressure(current_pressure)) {
-            start();
+        // Check restart conditions based on current stop reason
+        if (!is_on_) {
+            if (current_state_ == STOPPED_FLOW_ALARM) {
+                // After flow alarm: restart only when flow is normal AND pressure is low
+                if (flow_switch.is_normal() && can_start_for_pressure(current_pressure)) {
+                    start();
+                }
+            } else {
+                // For other stop reasons (high pressure, low pressure): restart based on pressure
+                if (can_start_for_pressure(current_pressure)) {
+                    start();
+                }
+            }
         }
     }
 
@@ -470,34 +482,35 @@ class PressureTransmitter {
         if (pump.is_on()) {
             // --- Pump is ON ---
             if (enter_valve.is_open() && exit_valve.is_open()) {
+                // Normal operation: stabilize at 33 psi
                 pressure_ = SystemConstants::NORMAL_OPERATING_PRESSURE;
-            } else if (!exit_valve.is_open()) { // Exit valve closed, pump trying to run
-                pressure_ += SystemConstants::PRESSURE_INCREMENT * 2; // Pressure builds
-            } else { // Enter valve closed or other issue, pump trying to run
-                pressure_ = SystemConstants::INITIAL_PRESSURE; // No inlet, pressure should be low/zero at pump
+            } else if (!exit_valve.is_open()) { 
+                // Exit valve closed, pump running - pressure builds up gradually
+                pressure_ += SystemConstants::PRESSURE_INCREMENT;
+            } else { 
+                // Enter valve closed - pump can't draw liquid, pressure drops to zero
+                pressure_ = SystemConstants::INITIAL_PRESSURE;
             }
         } else {
             // --- Pump is OFF ---
             if (exit_valve.is_open()) {
-                // If pressure was high and pump just stopped, it should decrease.
-                if (pressure_ > SystemConstants::LOW_PRESSURE_THRESHOLD) {
-                    pressure_ = SystemConstants::LOW_PRESSURE_THRESHOLD - 1.0; // Force it below restart threshold
-                } else if (pressure_ > SystemConstants::INITIAL_PRESSURE) {
-                     pressure_ -= SystemConstants::PRESSURE_INCREMENT; // Gradual decay to 0
-                }
-                 if (pressure_ < SystemConstants::INITIAL_PRESSURE) {
-                    pressure_ = SystemConstants::INITIAL_PRESSURE;
+                // Valve open, pressure decays gradually toward zero
+                if (pressure_ > SystemConstants::INITIAL_PRESSURE) {
+                    pressure_ -= SystemConstants::PRESSURE_INCREMENT * 0.5; // Slower decay
+                    if (pressure_ < SystemConstants::INITIAL_PRESSURE) {
+                        pressure_ = SystemConstants::INITIAL_PRESSURE;
+                    }
                 }
             }
-            // If exit_valve is closed and pump is off, pressure should ideally remain.
-            // No specific change needed here for that case as pressure_ won't be modified by this block.
+            // If exit valve closed and pump off, pressure remains at current level
+            // (no change to pressure_ - it maintains last value)
         }
 
-        if (pressure_ < SystemConstants::INITIAL_PRESSURE) { // Ensure pressure doesn't go below initial (usually 0)
+        // Ensure pressure doesn't go below zero
+        if (pressure_ < SystemConstants::INITIAL_PRESSURE) {
             pressure_ = SystemConstants::INITIAL_PRESSURE;
         }
-        // Max pressure clamp can also be considered if pressure_ can exceed a physical limit
-        // For now, high pressure stop is handled by the pump logic.
+    }
     }
 };
 
