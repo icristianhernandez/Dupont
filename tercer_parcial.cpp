@@ -189,7 +189,7 @@ class ConfigValidator {
     }
 
     static void validate_valve_value(const string &key, const string &value) {
-        if (value != "OPEN" && value != "CLOSED") {
+        if (value != "OPEN" && value != "CLOSE") {
             throw runtime_error("Invalid value for valve " + key + ": " +
                                 value);
         }
