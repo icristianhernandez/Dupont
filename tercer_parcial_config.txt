@@ -11,7 +11,7 @@ V402 = OPEN
 V403 = OPEN
 
 # Valores Posibles: AzMarino / AzCeleste
-COLOR_A_MEZCLAR = AzMarino
+COLOR_A_MEZCLAR = AzCeleste
 
 # Valores Posibles: ON / OFF   (Se debe apagar <OFF> y volver a encender <ON>
 # para comenzar un nuevo lote)
