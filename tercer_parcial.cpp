@@ -511,7 +511,6 @@ class PressureTransmitter {
             pressure_ = SystemConstants::INITIAL_PRESSURE;
         }
     }
-    }
 };
 
 class PumpLine {
