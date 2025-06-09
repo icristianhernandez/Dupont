@@ -331,8 +331,9 @@ class FlowSwitch {
     }
 
     void evaluate_status(double flow_rate, bool pump_should_be_flowing) {
-        // Flow switch only goes to ALARM if pump should be flowing but isn't
-        // If pump is intentionally off, flow switch stays NORMAL
+        // Flow switch goes to ALARM when:
+        // 1. Pump should be flowing but flow rate is 0 (valve issues, blockage, etc.)
+        // 2. Any flow anomaly when pump is running at expected capacity
         if (pump_should_be_flowing && flow_rate == 0) {
             status_ = SystemConstants::ALARM_STATUS;
         } else {
@@ -418,6 +419,13 @@ class LiquidPump {
     double get_elapsed_seconds() const { return pump_elapsed_seconds_; }
     double get_target_duration() const { return target_pump_duration_seconds_; }
 
+    double get_actual_flow_rate(const Valve &enter_valve, const Valve &exit_valve) const {
+        if (is_on_ && enter_valve.is_open() && exit_valve.is_open()) {
+            return flow_rate_lts_min_;
+        }
+        return 0.0; // No flow if pump is off or any valve is closed
+    }
+
     void update_pump_state(const FlowSwitch &flow_switch,
                            double current_pressure) {
         // Check stop conditions first
@@ -492,6 +500,7 @@ class PressureTransmitter {
                 pressure_ = SystemConstants::NORMAL_OPERATING_PRESSURE;
             } else if (!exit_valve.is_open()) { 
                 // Exit valve closed, pump running - pressure builds up gradually
+                // Flow rate immediately drops to 0 lts/min when discharge valve closes
                 pressure_ += SystemConstants::PRESSURE_INCREMENT;
             } else { 
                 // Enter valve closed - pump can't draw liquid, pressure drops to zero
@@ -499,17 +508,27 @@ class PressureTransmitter {
             }
         } else {
             // --- Pump is OFF ---
-            if (exit_valve.is_open()) {
-                // Valve open, pressure decays gradually toward zero
-                if (pressure_ > SystemConstants::INITIAL_PRESSURE) {
-                    pressure_ -= SystemConstants::PRESSURE_INCREMENT * 0.5; // Slower decay
-                    if (pressure_ < SystemConstants::INITIAL_PRESSURE) {
-                        pressure_ = SystemConstants::INITIAL_PRESSURE;
+            // Handle pressure behavior based on pump stop reason
+            if (pump.get_state() == STOPPED_FLOW_ALARM) {
+                // After flow alarm shutdown: pressure behavior depends on discharge valve
+                if (exit_valve.is_open()) {
+                    // Discharge valve open: pressure drops to 0 psi
+                    pressure_ = SystemConstants::INITIAL_PRESSURE;
+                }
+                // If discharge valve closed: pressure maintains last value (no change)
+            } else {
+                // For other stop reasons (high pressure, target reached, etc.)
+                if (exit_valve.is_open()) {
+                    // Valve open, pressure decays gradually toward zero
+                    if (pressure_ > SystemConstants::INITIAL_PRESSURE) {
+                        pressure_ -= SystemConstants::PRESSURE_INCREMENT * 0.5; // Slower decay
+                        if (pressure_ < SystemConstants::INITIAL_PRESSURE) {
+                            pressure_ = SystemConstants::INITIAL_PRESSURE;
+                        }
                     }
                 }
+                // If exit valve closed and pump off, pressure remains at current level
             }
-            // If exit valve closed and pump off, pressure remains at current level
-            // (no change to pressure_ - it maintains last value)
         }
 
         // Ensure pressure doesn't go below zero
@@ -590,18 +609,11 @@ PumpLine(const string &pump_code, // Private constructor
     LiquidTank &get_tank_mutable() { return tank_; }
 
     void update_system_state() {
-        double physical_flow = 0.0;
-        bool pump_should_be_flowing = false;
+        // Calculate actual flow rate based on pump and valve states
+        double physical_flow = pump_.get_actual_flow_rate(enter_valve_, exit_valve_);
+        bool pump_should_be_flowing = pump_.is_on();
         
-        if (pump_.is_on() && enter_valve_.is_open() && exit_valve_.is_open()) {
-            physical_flow = pump_.get_flow_rate();
-            pump_should_be_flowing = true;
-        } else if (pump_.is_on() && (!enter_valve_.is_open() || !exit_valve_.is_open())) {
-            // Pump is on but valves prevent flow - this should trigger flow alarm
-            pump_should_be_flowing = true;
-            physical_flow = 0.0;
-        }
-        
+        // Evaluate flow switch status
         flow_switch_.evaluate_status(physical_flow, pump_should_be_flowing);
 
         // Order of updates matters:
@@ -619,7 +631,29 @@ PumpLine(const string &pump_code, // Private constructor
     }
 
     bool need_to_pump() const {
-        return pump_.get_elapsed_seconds() < pump_.get_target_duration();
+        // Check if pump hasn't reached target duration
+        if (pump_.get_elapsed_seconds() >= pump_.get_target_duration()) {
+            return false; // Target reached, no more pumping needed
+        }
+        
+        // Check if pump can potentially continue pumping
+        PumpState state = pump_.get_state();
+        
+        // Pump needs to pump if it's running or can potentially restart
+        if (state == RUNNING) {
+            return true; // Currently pumping
+        }
+        
+        // For stopped pumps, only consider them as "needing to pump" if they can potentially restart
+        // Pumps stopped due to flow alarm or high pressure might restart when conditions improve
+        if (state == STOPPED_FLOW_ALARM || state == STOPPED_HIGH_PRESSURE || state == STOPPED_LOW_PRESSURE) {
+            // These states can potentially restart, so we still "need to pump"
+            // But we should also check if the conditions allow pumping
+            return enter_valve_.is_open() && exit_valve_.is_open();
+        }
+        
+        // If stopped due to target reached, no more pumping needed
+        return false;
     }
 };
 
@@ -1012,9 +1046,75 @@ class Factory {
         return false;
     }
 
+    bool all_required_pumps_completed() const {
+        // Check if all pumps that have a target have either:
+        // 1. Reached their target duration, OR
+        // 2. Are permanently unable to continue (valves closed, etc.)
+        
+        for (map<string, PumpLine>::const_iterator it = pump_lines_.begin(); 
+             it != pump_lines_.end(); ++it) {
+            const PumpLine& pump_line = it->second;
+            const LiquidPump& pump = pump_line.get_pump();
+            
+            // Skip pumps with no target (target duration = 0)
+            if (pump.get_target_duration() <= 0) {
+                continue;
+            }
+            
+            // Check if this pump has completed its target
+            if (pump.get_elapsed_seconds() >= pump.get_target_duration()) {
+                continue; // This pump is done
+            }
+            
+            // Check if pump is prevented from continuing due to valve configuration
+            if (!pump_line.get_enter_valve().is_open() || !pump_line.get_exit_valve().is_open()) {
+                // Pump can't continue due to closed valves - consider it "completed" for mixing purposes
+                continue;
+            }
+            
+            // If we get here, this pump still has work to do and can potentially do it
+            return false;
+        }
+        
+        return true; // All required pumps are completed or unable to continue
+    }
+
+    bool all_required_pumps_completed() const {
+        // Check if all pumps that have a target have either:
+        // 1. Reached their target duration, OR
+        // 2. Are permanently unable to continue (valves closed, etc.)
+        
+        for (map<string, PumpLine>::const_iterator it = pump_lines_.begin(); 
+             it != pump_lines_.end(); ++it) {
+            const PumpLine& pump_line = it->second;
+            const LiquidPump& pump = pump_line.get_pump();
+            
+            // Skip pumps with no target (target duration = 0)
+            if (pump.get_target_duration() <= 0) {
+                continue;
+            }
+            
+            // Check if this pump has completed its target
+            if (pump.get_elapsed_seconds() >= pump.get_target_duration()) {
+                continue; // This pump is done
+            }
+            
+            // Check if pump is prevented from continuing due to valve configuration
+            if (!pump_line.get_enter_valve().is_open() || !pump_line.get_exit_valve().is_open()) {
+                // Pump can't continue due to closed valves - consider it "completed" for mixing purposes
+                continue;
+            }
+            
+            // If we get here, this pump still has work to do and can potentially do it
+            return false;
+        }
+        
+        return true; // All required pumps are completed or unable to continue
+    }
+
     void update_mix() {
-        // Check if we should start mixing: all pumps finished and mixer not running
-        if (!pump_lines_need_to_pump() && !mixer_tank_.get_mixer_motor().is_running()) {
+        // Check if we should start mixing: all required pumps completed and mixer not running
+        if (all_required_pumps_completed() && !mixer_tank_.get_mixer_motor().is_running()) {
             // Start mixing if there's liquid in the tank and batch is in process
             if (mixer_tank_.get_current_capacity() > 0 && batch_in_process_) {
                 mixer_tank_.get_mixer_motor_mutable().start();
@@ -1147,7 +1247,7 @@ class UserInterface {
         // Show current batch phase
         if (factory.is_batch_in_process()) {
             cout << "Fase actual: ";
-            if (factory.pump_lines_need_to_pump()) {
+            if (!factory.all_required_pumps_completed()) {
                 cout << "BOMBEANDO" << endl;
             } else if (factory.get_mixer_tank().get_mixer_motor().is_running()) {
                 cout << "MEZCLANDO" << endl;
@@ -1384,7 +1484,7 @@ int main() {
                     cout << "ADVERTENCIA: No se puede iniciar un nuevo lote." << endl;
                     cout << "Espere a que termine el lote actual antes de iniciar uno nuevo." << endl;
                     cout << "Estado actual: ";
-                    if (factory.pump_lines_need_to_pump()) {
+                    if (!factory.all_required_pumps_completed()) {
                         cout << "Bombeando liquidos..." << endl;
                     } else if (factory.get_mixer_tank().get_mixer_motor().is_running()) {
                         cout << "Mezclando..." << endl;
@@ -1396,7 +1496,7 @@ int main() {
                     std::cin.get();
                 }
                 
-                if (factory.pump_lines_need_to_pump()) {
+                if (!factory.all_required_pumps_completed()) {
                     factory.update_all_pump_lines();
                 }
             }
