@@ -29,7 +29,7 @@ const bool INITIAL_PUMP_STATE = false;
 const bool INITIAL_FLOW_TRANSMITTER_STATE = NORMAL_STATUS;
 const string CONFIG_FILE_PATH = "./tercer_parcial_config.txt";
 const double BATCH_SIZE = 150.0;
-const map<string, map<string, double>> COLOR_RECIPES = {
+const map<string, map<string, double> > COLOR_RECIPES = {
     {"AzMarino", {{"Azul", 2.0 / 3.0}, {"Negro", 1.0 / 3.0}}}, // Reverted proportions
     {"AzCeleste",
      {{"Azul", 1.0 / 3.0}, {"Negro", 1.0 / 3.0}, {"Blanco", 1.0 / 3.0}}}};
@@ -589,7 +589,6 @@ class LowLevelSwitch {
 };
 
 class MixerMotor {
-    ;
 
   private:
     string code_;
@@ -778,7 +777,7 @@ class Factory {
     void set_batch_in_process() {
         if (!batch_in_process_) {
             batch_in_process_ = true;
-        };
+        }
     }
 
     const PumpLine &get_pump_line(const string &pump_code) const {
@@ -802,7 +801,8 @@ class Factory {
     }
 
     void transfer_liquid_to_mixer(double seconds = 1.0) {
-        for (auto &[code, pump_line] : pump_lines_) {
+        for (auto it = pump_lines_.begin(); it != pump_lines_.end(); ++it) {
+            PumpLine &pump_line = it->second;
             auto &pump = pump_line.get_pump_mutable();
             auto &tank = pump_line.get_tank_mutable();
             // Check pump state AND valve states for actual liquid transfer
@@ -819,8 +819,8 @@ class Factory {
     }
 
     void update_all_pump_lines() {
-        for (auto &[code, pump_line] : pump_lines_) {
-            pump_line.update_system_state();
+        for (auto it = pump_lines_.begin(); it != pump_lines_.end(); ++it) {
+            it->second.update_system_state();
         }
 
         transfer_liquid_to_mixer();
@@ -837,16 +837,17 @@ class Factory {
         // the line is one of the targeted and if is, set the time with the
         // proportions
 
-        for (auto &[code, pump_line] : pump_lines_) {
+        for (auto it = pump_lines_.begin(); it != pump_lines_.end(); ++it) {
+            PumpLine &pump_line = it->second;
             const auto &pump = pump_line.get_pump();
             const auto &tank = pump_line.get_tank();
 
             if (color_recipe != SystemConstants::COLOR_RECIPES.end()) {
                 const auto &recipe = color_recipe->second;
-                auto it = recipe.find(tank.get_liquid_in_tank_name());
-                if (it != recipe.end()) {
+                auto it2 = recipe.find(tank.get_liquid_in_tank_name());
+                if (it2 != recipe.end()) {
                     double target_liters =
-                        SystemConstants::BATCH_SIZE * it->second;
+                        SystemConstants::BATCH_SIZE * it2->second;
                     pump_line.get_pump_mutable().set_pump_target_liters(
                         target_liters);
                 } else {
@@ -859,7 +860,8 @@ class Factory {
     }
 
     void reset() {
-        for (auto &[code, pump_line] : pump_lines_) {
+        for (auto it = pump_lines_.begin(); it != pump_lines_.end(); ++it) {
+            PumpLine &pump_line = it->second;
             pump_line.get_pump_mutable().set_pump_target_liters(0);
             pump_line.get_pump_mutable().increment_elapsed_time(
                 -pump_line.get_pump().get_elapsed_seconds());
@@ -871,7 +873,8 @@ class Factory {
     }
 
     bool pump_lines_need_to_pump() const {
-        for (const auto &[code, pump_line] : pump_lines_) {
+        for (auto it = pump_lines_.begin(); it != pump_lines_.end(); ++it) {
+            const PumpLine &pump_line = it->second;
             if (pump_line.need_to_pump()) {
                 return true;
             }
@@ -912,7 +915,9 @@ class Factory {
     }
 
     void apply_valve_configuration(const SystemConfig &config) {
-        for (const auto &[valve_name, valve_state] : config.valve_states) {
+        for (auto it = config.valve_states.begin(); it != config.valve_states.end(); ++it) {
+            const string &valve_name = it->first;
+            const string &valve_state = it->second;
             bool should_be_open = (valve_state == "OPEN");
                 // TODO: Consider a more robust way to map valve names to components if more valves are added.
                 // For now, direct mapping is used.
@@ -945,7 +950,8 @@ class Factory {
         }
 
         // Check if required pump lines have both valves open
-        for (const auto &[code, pump_line] : pump_lines_) {
+        for (auto it = pump_lines_.begin(); it != pump_lines_.end(); ++it) {
+            const PumpLine &pump_line = it->second;
             const auto &tank_liquid = pump_line.get_tank().get_liquid_in_tank_name();
             
             // Check if this liquid is needed for the recipe
@@ -998,7 +1004,9 @@ class UserInterface {
         cout << endl;
 
         cout << "=== Estado de las Líneas de Bombeo ===" << endl;
-        for (const auto &[code, pump_line] : factory.get_all_pump_lines()) {
+        const auto &all_pump_lines = factory.get_all_pump_lines();
+        for (auto it = all_pump_lines.begin(); it != all_pump_lines.end(); ++it) {
+            const PumpLine &pump_line = it->second;
             show_pump_line_status(pump_line);
         }
 
@@ -1033,7 +1041,9 @@ class UserInterface {
 
     void show_valve_status(const Factory &factory, const SystemConfig &config) {
         // Display valve states from configuration and actual valve states
-        for (const auto &[valve_name, config_state] : config.valve_states) {
+        for (auto it = config.valve_states.begin(); it != config.valve_states.end(); ++it) {
+            const string &valve_name = it->first;
+            const string &config_state = it->second;
             cout << "Válvula " << valve_name << ": ";
             cout << "Config=" << config_state;
             
