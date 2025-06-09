@@ -1,0 +1,24 @@
+# Input file for Paint Mixing System Simulation
+
+# Select paint type: AZUL_MARINO or AZUL_CELESTE
+COLOR AZUL_CELESTE
+
+# Set initial start command: ON or OFF
+START_COMMAND OFF
+
+# Set initial valve states
+# Discharge valves from base tanks to mixer
+VALVE V201_D OPEN  # P201 (Blanco) Discharge
+VALVE V202_D OPEN  # P202 (Azul) Discharge
+VALVE V203_D OPEN  # P203 (Negro) Discharge
+
+# Suction valves for base tank pumps
+VALVE V201_S OPEN  # P201 (Blanco) Suction
+VALVE V202_S OPEN  # P202 (Azul) Suction
+VALVE V203_S OPEN  # P203 (Negro) Suction
+
+# Mixer drain valve
+VALVE V401_DRAIN OPEN # Mixer Drain
+
+# Example of a closed valve:
+# VALVE V201_D CLOSED
