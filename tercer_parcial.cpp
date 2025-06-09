@@ -439,6 +439,9 @@ class LiquidPump {
             target_pump_duration_seconds_ =
                 (amount_lts / flow_rate_lts_min_) * 60.0;
             pump_elapsed_seconds_ = 0.0;
+        } else { // If amount_lts is 0 or negative
+            target_pump_duration_seconds_ = 0.0;
+            pump_elapsed_seconds_ = 0.0; // Ensure elapsed is also zero
         }
     }
 
@@ -572,16 +575,33 @@ PumpLine(const string &pump_code, // Private constructor
     LiquidTank &get_tank_mutable() { return tank_; }
 
     void update_system_state() {
-        double physical_flow = 0.0;
-        if (pump_.is_on() && enter_valve_.is_open() && exit_valve_.is_open()) {
-            physical_flow = pump_.get_flow_rate();
+        // Evaluate potential flow first, assuming pump *could* run if conditions allow
+        double potential_flow_if_pump_were_on = 0.0;
+        if (enter_valve_.is_open() && exit_valve_.is_open()) { // Check if path is clear
+            potential_flow_if_pump_were_on = pump_.get_flow_rate();
         }
-        flow_switch_.evaluate_status(physical_flow); // Use physical_flow
+
+        // If the pump is currently in STOPPED_FLOW_ALARM,
+        // re-evaluate flow_switch based on potential flow IF valves are now open.
+        // This allows the flow_switch to recover to NORMAL if the blockage is cleared.
+        // Also, consider if the pump is off for other reasons but path is clear,
+        // flow switch should reflect normal potential.
+        if (pump_.get_state() == STOPPED_FLOW_ALARM || !pump_.is_on()) { // Broader condition for re-evaluation
+            flow_switch_.evaluate_status(potential_flow_if_pump_were_on);
+        } else {
+            // For RUNNING state, evaluate flow_switch based on actual current pump running status
+            double actual_physical_flow = 0.0;
+            if (pump_.is_on() && enter_valve_.is_open() && exit_valve_.is_open()) { // Re-check, belt and suspenders
+                actual_physical_flow = pump_.get_flow_rate();
+            }
+            flow_switch_.evaluate_status(actual_physical_flow);
+        }
 
         // Order of updates matters:
         // 1. Update pressure based on current valve/pump states (BEFORE pump state changes for this cycle)
         pressure_transmitter_.update_pressure(enter_valve_, exit_valve_, pump_);
         // 2. Update pump state based on flow and new pressure
+        // Pump state update now uses the potentially corrected flow_switch status
         pump_.update_pump_state(flow_switch_, pressure_transmitter_.read_pressure());
 
         // 3. Increment time if pump is (still) on after state update
