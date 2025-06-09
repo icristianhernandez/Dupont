@@ -831,6 +831,11 @@ class Factory {
 
     bool is_emptying_in_process() const { return emptying_in_process_; }
 
+    bool is_batch_complete() const {
+        return !batch_in_process_ && !emptying_in_process_ && 
+               mixer_tank_.is_empty() && !pump_lines_need_to_pump();
+    }
+
     void set_batch_in_process() {
         if (!batch_in_process_) {
             batch_in_process_ = true;
@@ -958,8 +963,8 @@ class Factory {
         if (mixer_tank_.get_mixer_motor().is_running()) {
             mixer_tank_.get_mixer_motor_mutable().update_mixing_progress(1.0);
             
-            // Check if mixing is complete - start emptying phase
-            if (!mixer_tank_.get_mixer_motor().is_running()) {
+            // Check if mixing is complete - ONLY start emptying after mixing is finished
+            if (!mixer_tank_.get_mixer_motor().is_running() && mixer_tank_.get_current_capacity() > 0) {
                 emptying_in_process_ = true;
             }
         }
@@ -973,6 +978,7 @@ class Factory {
             if (mixer_tank_.is_empty()) {
                 emptying_in_process_ = false;
                 batch_in_process_ = false;
+                // Batch completion will be handled by UI notification
             }
         }
     }
@@ -1037,14 +1043,34 @@ class Factory {
 
 class UserInterface {
   private:
+    bool last_batch_in_process_;
+    
     void clear_screen() { system("cls"); }
 
   public:
+    UserInterface() : last_batch_in_process_(false) {}
+    
     void clear_display() { clear_screen(); }
 
     void show_simulation_status(const Factory &factory,
                                 const SystemConfig &config) {
         clear_screen();
+        
+        // Check if batch just completed
+        if (last_batch_in_process_ && !factory.is_batch_in_process() && 
+            !factory.is_emptying_in_process()) {
+            cout << "*** LOTE COMPLETADO EXITOSAMENTE ***" << endl;
+            cout << "El lote de " << config.color_a_mezclar << " ha sido completado." << endl;
+            cout << "El mezclador ha sido vaciado y esta listo para un nuevo lote." << endl;
+            cout << "Presione Enter para continuar..." << endl;
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cin.get();
+            clear_screen();
+        }
+        
+        // Update tracking variable
+        last_batch_in_process_ = factory.is_batch_in_process();
+        
         cout << "=== Sistema de Mezcla de Pintura Dupont ===" << endl;
         cout << "Color a mezclar: " << config.color_a_mezclar << endl;
         cout << "Estado de fabricacion: " << config.arranque_de_fabricacion
