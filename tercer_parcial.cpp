@@ -1,99 +1,3 @@
-/*
-Usted ha sido contratado por Dupont, líder mundial en fabricación de pintura
-para el sector automotriz. Su Jefe, al revisar su curriculum, detecta que usted
-tiene conocimientos de programación en C++ y le solicita que programe el sistema
-de elaboración de las dos pinturas lideres para el mercado venezolano: Azul
-Marino (AzMarino) y Azul Celeste (AzCeleste).
-
-El programa debe cumplir con las siguientes premisas:
-
-1ro.- El proceso arranca por comando del tablero "Botón de arranque de mezcla"
-de Mezcla.
-
-2do.- Cualquier bomba debe detenerse si: (1) el interruptor de flujo a la
-entrada de la válvula de descarga pasa a "Alarma" (2) si la presión a la
-descarga de la válvula pasa los 50 psi (3) La cantidad de pintura que debía
-bombear ya se encuentra en el mezclador.
-
-3ro.- Cuando una bomba se encuentra trabajando con con la válvula de succión y
-descarga abierta su caudal de operación es de 100 lts/mi.
-
-4to.- La presión a su descarga debe ubicarse alrededor de 33 psi si las válvulas
-a la entrada y a la salida se encuentran abiertas. Si en ese instante se cierra
-la válvula de descarga, el caudal inmediatamente cae a 0 (no pasa ninguna
-cantidad de base de pintura al tanque de mezclado). adicionalmente, la presión
-comienza a aumentar y al pasar los 50 psi la bomba se apaga por por sobre
-presión. Si la válvula se abre la presión desciende hasta 20 psi en donde la
-bomba arranca nuevamente y se estabiliza en 33 psi, al re-arrancar la bomba
-vuelve a enviar los 100 lts/min.
-
-5to.- Cuando una bomba se encuentra trabajando a su caudal máximo de 100 lts/min
-y se activa el Switch de bajo Flujo (Alarma) la bomba debe apagarse de
-inmediato. La presión a la descarga debe descender a 0 psi si la válvula se
-encuentra abierta, si se encuentra cerrada la presión se mantiene en el último
-valor. Al recuperar el Switch de bajo Flujo su condición de funcionamiento
-(Normal), la bomba re-arrancará cuando la presión a la descarga baje por debajo
-de 20 psi y durante ese tiempo la presión se incrementará la presión hasta su
-nivel normal de operación alrededor de 33 psi.
-
-6to.- Cuando se desea mezclar un tipo de pintura se debe garantizar que el
-tanque de mezclado reciba la cantidad correcta de las bases necesarias para
-obtener el color requerido. Por ejemplo si deseamos obtener Azul Marino
-(AzMarino), según la tabla la relación 2 partes de negro por cada parte de Azul.
-Como el Tanque destino tiene capacidad de 200 lts  pero los lotes se fabrican de
-150 lts, por lo tanto debo prender la bomba P203 (Negro) el tiempo necesario
-para bombear 100 lts de Negro (60 segundos) y la Bomba P202 (Azul) el tiempo
-necesario para bombear 50 lts (30 segundos) de Azul. En pantalla debe mostrarse
-la cantidad de segundos en los cuales cada bomba aporta base de pintura al
-mezclador. No presentar estos contadores descalifican al programa entregado.
-
-7mo.- Una vez bombeada la cantidad de base necesaria, se apagan las bombas de
-base de pintura y se enciende el motor de mezclado por 30 segundos.
-
-8vo.- Si durante el proceso de bombeo se detiene alguna bomba por algún
-inconveniente, las otras bombas deben completar su proceso de bombeo. Si después
-de un tiempo la bomba que falló se recupera ella debe completar el bombeo de la
-base de pintura faltante para asegurar la mezcla. Solo cuando se haya terminado
-de bombear los 150 litros y se hayan apagado las bombas de base de pintura
-(P201, P202 y P203) es que se arrancara el motor de mezclado M401 por los 30
-segundos estipulados.
-
-9no.- El programa debe impedir que se arranque un nuevo lote de mezclado de
-pintura si el lote en curso no se ha completado. En caso de intentar arrancar el
-proceso nuevamente sin que el lote de preparación actual este completado, el
-programa deberá presentar un mensaje en pantalla que informe que el ultimo
-proceso de mezclado no se ha completado y la solicitud no será aceptada.
-
-10mo.- Para que el proceso de mezcla pueda arrancar el interruptor de bajo nivel
-del mezclador debe estar en alarma, de lo contrario el sistema no aceptara el
-comando de arranque.
-
-11vo.- Para que arranque la preparación de un nuevo lote de pintura es necesario
-que el interruptor de bajo nivel del mezclador este activado y que el botón de
-arranque se encuentre en OFF y pase a ON. Esta condición será verificada. Los
-procesos de elaboración de lotes no puede arrancar de forma automática.
-
-Condiciones del Profesor:
-El Archivo de texto contendrá las Válvulas V201, V202, V203, V401, V402, V403,
-el Color a mezclar (AzMarino / AzCeleste) y el comando de arranque de
-fabricación (ON/OFF); si este comando pasa a ON y el mezclador esta vacío se
-procederá a fabricar el lote de pintura definida según el Color a mezclar. Si
-durante el proceso de fabricación de un lote se coloca en OFF el comando de
-arranque, el proceso de fabricación en curso deberá completarse. Se debe indicar
-tiempo de funcionamiento de cada bomba en segundos y los transmisores de niveles
-de los tanques bases y el mezclador, de forma de verificar el funcionamiento del
-programa. Usted debe simular todos los elementos del esquema y su
-funcionamiento. Se debe monitorear todos los elementos  en pantalla. una vez
-finalice el ciclo de mezclado el mezclador debe vaciarse a razón de 4% cada
-segundo (25 seg totales) Condiciones Iniciales Los niveles de los tanques bases
-son de 25% el nivel del mezclador en 0% Los interruptores de Flujo en Normal.
-Todas las válvulas abiertas.
-Las bombas apagadas.
-Los transmisores de presión en 0 psi.
-El comando de arranque de fabricación en OFF.
-El selector de tipo de pintura en AzCeleste
- */
-
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
@@ -126,7 +30,7 @@ const bool INITIAL_FLOW_TRANSMITTER_STATE = NORMAL_STATUS;
 const string CONFIG_FILE_PATH = "./tercer_parcial_config.txt";
 const double BATCH_SIZE = 150.0;
 const map<string, map<string, double>> COLOR_RECIPES = {
-    {"AzMarino", {{"Azul", 2.0 / 3.0}, {"Negro", 1.0 / 3.0}}},
+    {"AzMarino", {{"Azul", 2.0 / 3.0}, {"Negro", 1.0 / 3.0}}}, // Reverted proportions
     {"AzCeleste",
      {{"Azul", 1.0 / 3.0}, {"Negro", 1.0 / 3.0}, {"Blanco", 1.0 / 3.0}}}};
 } // namespace SystemConstants
@@ -184,7 +88,7 @@ class ConfigFileHandler {
             "V403 = OPEN\n"
             "\n"
             "# Valores Posibles: AzMarino / AzCeleste\n"
-            "COLOR_A_MEZCLAR = AzMarino\n"
+            "COLOR_A_MEZCLAR = AzCeleste\n"
             "\n"
             "# Valores Posibles: ON / OFF   (Se debe apagar <OFF> y volver a "
             "encender <ON>\n"
@@ -534,23 +438,37 @@ class PressureTransmitter {
                          const Valve &exit_valve,
                          const LiquidPump &pump) {
 
-        if (enter_valve.is_open() && exit_valve.is_open()) {
-            if (pump.is_on()) {
+        if (pump.is_on()) {
+            // --- Pump is ON ---
+            if (enter_valve.is_open() && exit_valve.is_open()) {
                 pressure_ = SystemConstants::NORMAL_OPERATING_PRESSURE;
-            } else {
-                pressure_ += SystemConstants::PRESSURE_INCREMENT;
-            }
-        } else if (!exit_valve.is_open()) {
-            if (pump.is_on()) {
-                pressure_ += SystemConstants::PRESSURE_INCREMENT * 2;
+            } else if (!exit_valve.is_open()) { // Exit valve closed, pump trying to run
+                pressure_ += SystemConstants::PRESSURE_INCREMENT * 2; // Pressure builds
+            } else { // Enter valve closed or other issue, pump trying to run
+                pressure_ = SystemConstants::INITIAL_PRESSURE; // No inlet, pressure should be low/zero at pump
             }
         } else {
-            pressure_ = SystemConstants::INITIAL_PRESSURE;
+            // --- Pump is OFF ---
+            if (exit_valve.is_open()) {
+                // If pressure was high and pump just stopped, it should decrease.
+                if (pressure_ > SystemConstants::LOW_PRESSURE_THRESHOLD) {
+                    pressure_ = SystemConstants::LOW_PRESSURE_THRESHOLD - 1.0; // Force it below restart threshold
+                } else if (pressure_ > SystemConstants::INITIAL_PRESSURE) {
+                     pressure_ -= SystemConstants::PRESSURE_INCREMENT; // Gradual decay to 0
+                }
+                 if (pressure_ < SystemConstants::INITIAL_PRESSURE) {
+                    pressure_ = SystemConstants::INITIAL_PRESSURE;
+                }
+            }
+            // If exit_valve is closed and pump is off, pressure should ideally remain.
+            // No specific change needed here for that case as pressure_ won't be modified by this block.
         }
 
-        if (pressure_ < 0) {
-            pressure_ = 0;
+        if (pressure_ < SystemConstants::INITIAL_PRESSURE) { // Ensure pressure doesn't go below initial (usually 0)
+            pressure_ = SystemConstants::INITIAL_PRESSURE;
         }
+        // Max pressure clamp can also be considered if pressure_ can exceed a physical limit
+        // For now, high pressure stop is handled by the pump logic.
     }
 };
 
@@ -563,8 +481,7 @@ class PumpLine {
     PressureTransmitter pressure_transmitter_;
     LiquidTank tank_;
 
-    // Private constructor - only accessible through static factory method
-    PumpLine(const string &pump_code,
+PumpLine(const string &pump_code, // Private constructor
              const string &enter_valve_code,
              const string &exit_valve_code,
              const string &flow_switch_code,
@@ -626,12 +543,19 @@ class PumpLine {
     LiquidTank &get_tank_mutable() { return tank_; }
 
     void update_system_state() {
-        double current_flow = pump_.is_on() ? pump_.get_flow_rate() : 0.0;
-        flow_switch_.evaluate_status(current_flow);
-        pump_.update_pump_state(flow_switch_,
-                                pressure_transmitter_.read_pressure());
-        pressure_transmitter_.update_pressure(enter_valve_, exit_valve_, pump_);
+        double physical_flow = 0.0;
+        if (pump_.is_on() && enter_valve_.is_open() && exit_valve_.is_open()) {
+            physical_flow = pump_.get_flow_rate();
+        }
+        flow_switch_.evaluate_status(physical_flow); // Use physical_flow
 
+        // Order of updates matters:
+        // 1. Update pressure based on current valve/pump states (BEFORE pump state changes for this cycle)
+        pressure_transmitter_.update_pressure(enter_valve_, exit_valve_, pump_);
+        // 2. Update pump state based on flow and new pressure
+        pump_.update_pump_state(flow_switch_, pressure_transmitter_.read_pressure());
+
+        // 3. Increment time if pump is (still) on after state update
         if (pump_.is_on()) {
             pump_.increment_elapsed_time(
                 SystemConstants::ONE_SECOND_IN_MS /
@@ -684,7 +608,10 @@ class MixerMotor {
         }
     }
 
-    void start() { is_on_ = true; }
+    void start() {
+        is_on_ = true;
+        elapsed_time_ = 0.0; // Reset elapsed time when starting
+    }
     void stop() { is_on_ = false; }
     bool is_running() const { return is_on_; }
     const string &get_code() const { return code_; }
@@ -818,8 +745,7 @@ class Factory {
     }
 
   public:
-    // Static factory method for standard Dupont paint mixing configuration
-    static Factory create_dupont_paint_factory() {
+    static Factory create_dupont_paint_factory() { // Standard Dupont setup
         vector<PumpLine> pump_lines;
 
         pump_lines.push_back(
@@ -879,10 +805,13 @@ class Factory {
         for (auto &[code, pump_line] : pump_lines_) {
             auto &pump = pump_line.get_pump_mutable();
             auto &tank = pump_line.get_tank_mutable();
+            // Check pump state AND valve states for actual liquid transfer
             if (pump.is_on() &&
+                pump_line.get_enter_valve().is_open() && // Check inlet valve
+                pump_line.get_exit_valve().is_open() &&  // Check outlet valve
                 (pump.get_elapsed_seconds() < pump.get_target_duration())) {
                 double flow_rate = pump.get_flow_rate(); // lts/min
-                double liters_this_cycle = flow_rate * (seconds / 60.0);
+                double liters_this_cycle = flow_rate * (seconds / 60.0); // Assuming 'seconds' is the time step for the simulation cycle
                 double drained = tank.drain(liters_this_cycle);
                 mixer_tank_.add_liquid(drained);
             }
@@ -937,10 +866,8 @@ class Factory {
             pump_line.get_enter_valve_mutable().set_open(true);
             pump_line.get_exit_valve_mutable().set_open(true);
         }
-        batch_in_process_ = false;
         emptying_in_process_ = false;
-        // Reset mixer motor if needed
-        mixer_tank_.get_mixer_motor_mutable().stop();
+        mixer_tank_.get_mixer_motor_mutable().stop(); // Reset mixer motor
     }
 
     bool pump_lines_need_to_pump() const {
@@ -985,11 +912,10 @@ class Factory {
     }
 
     void apply_valve_configuration(const SystemConfig &config) {
-        // Apply valve states from configuration
         for (const auto &[valve_name, valve_state] : config.valve_states) {
             bool should_be_open = (valve_state == "OPEN");
-            
-            // Map valve names to pump lines and valve types
+                // TODO: Consider a more robust way to map valve names to components if more valves are added.
+                // For now, direct mapping is used.
             if (valve_name == "V201") {
                 get_pump_line_mutable("P201").get_enter_valve_mutable().set_open(should_be_open);
             } else if (valve_name == "V202") {
@@ -1099,6 +1025,9 @@ class UserInterface {
              << endl;
         cout << "  Nivel tanque: " << tank.get_level() << "%" << endl;
         cout << "  Presión: " << pressure.read_pressure() << " psi" << endl;
+        const auto &flow_switch = pump_line.get_flow_switch(); // Get the flow switch
+        cout << "  Flujo Switch " << flow_switch.get_code() << ": "
+             << (flow_switch.is_normal() ? "NORMAL" : "ALARMA") << endl;
         cout << endl;
     }
 
@@ -1229,7 +1158,7 @@ int main() {
     try {
         bool is_running = true;
         SystemConfig user_config;
-        string previous_arranque_state = "OFF"; // Track previous state
+        string previous_arranque_state = "OFF";
 
         Factory factory = Factory::create_dupont_paint_factory();
 
@@ -1257,10 +1186,17 @@ int main() {
                                            user_config.arranque_de_fabricacion == "ON");
 
             if (!factory.is_batch_in_process()) {
-                if (start_command_triggered) {
+                if (start_command_triggered && factory.get_mixer_tank().get_low_level_switch().is_alarm()) {
                     factory.set_batch_in_process();
                     factory.reset();
                     factory.set_pump_times(user_config.color_a_mezclar);
+                } else if (start_command_triggered) { // Else if start was triggered but low level switch is NOT alarm
+                    // Add message to user
+                    cout << "ADVERTENCIA: No se puede iniciar un nuevo lote." << endl;
+                    cout << "El interruptor de bajo nivel del mezclador NO está en alarma (el tanque no está lo suficientemente vacío)." << endl;
+                    cout << "Presione Enter para continuar..." << endl;
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                    std::cin.get();
                 }
             } else {
                 // Batch is currently running
@@ -1276,8 +1212,8 @@ int main() {
                         cout << "Vaciando mezclador..." << endl;
                     }
                     cout << "Presione Enter para continuar..." << endl;
-                    cin.ignore();
-                    cin.get();
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                    std::cin.get();
                 }
                 
                 if (factory.pump_lines_need_to_pump()) {
@@ -1285,17 +1221,12 @@ int main() {
                 }
             }
 
-            // Update previous state for next iteration
-            previous_arranque_state = user_config.arranque_de_fabricacion;
+            previous_arranque_state = user_config.arranque_de_fabricacion; // Update previous state
             
-            // 3) Update mixing process
-            factory.update_mix();
+            factory.update_mix(); // Update mixing process
+            factory.update_emptying(); // Update emptying process
             
-            // 4) Update emptying process
-            factory.update_emptying();
-            
-            // Add a small delay to make simulation visible
-            Sleep(SystemConstants::ONE_SECOND_IN_MS);
+            Sleep(SystemConstants::ONE_SECOND_IN_MS); // Simulation delay
         }
     } catch (const exception &e) {
         cerr << "Error crítico en el programa: " << e.what() << endl;
