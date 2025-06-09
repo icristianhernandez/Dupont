@@ -1,10 +1,10 @@
-# Válvulas de entrada 
+# Valvulas de entrada 
 # Valores Posibles: OPEN / CLOSE
 V201 = OPEN
 V202 = OPEN
 V203 = OPEN
 
-# Válvulas de salida
+# Valvulas de salida
 # Valores Posibles: OPEN / CLOSE
 V401 = OPEN
 V402 = OPEN
@@ -15,4 +15,4 @@ COLOR_A_MEZCLAR = AzCeleste
 
 # Valores Posibles: ON / OFF   (Se debe apagar <OFF> y volver a encender <ON>
 # para comenzar un nuevo lote)
-ARRANQUE_DE_FABRICACIÓN = OFF
+ARRANQUE_DE_FABRICACION = OFF

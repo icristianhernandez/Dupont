@@ -91,13 +91,13 @@ class ConfigFileHandler {
     static void create_default_config_file(
         const string &filename = SystemConstants::CONFIG_FILE_PATH) {
         const char *default_config =
-            "# Válvulas de entrada \n"
+            "# Valvulas de entrada \n"
             "# Valores Posibles: OPEN / CLOSE\n"
             "V201 = OPEN\n"
             "V202 = OPEN\n"
             "V203 = OPEN\n"
             "\n"
-            "# Válvulas de salida\n"
+            "# Valvulas de salida\n"
             "# Valores Posibles: OPEN / CLOSE\n"
             "V401 = OPEN\n"
             "V402 = OPEN\n"
@@ -109,7 +109,7 @@ class ConfigFileHandler {
             "# Valores Posibles: ON / OFF   (Se debe apagar <OFF> y volver a "
             "encender <ON>\n"
             "# para comenzar un nuevo lote)\n"
-            "ARRANQUE_DE_FABRICACIÓN = OFF\n";
+            "ARRANQUE_DE_FABRICACION = OFF\n";
 
         ofstream out(filename.c_str(), ios::trunc);
         if (!out) {
@@ -162,7 +162,7 @@ class ConfigValidator {
         }
         if (config.arranque_de_fabricacion.empty()) {
             throw runtime_error(
-                "Missing required setting: ARRANQUE_DE_FABRICACIÓN");
+                "Missing required setting: ARRANQUE_DE_FABRICACION");
         }
 
         vector<string> known_valves = create_known_valve_keys();
@@ -183,7 +183,7 @@ class ConfigValidator {
 
     static void validate_start_command_value(const string &value) {
         if (value != "ON" && value != "OFF") {
-            throw runtime_error("Invalid value for ARRANQUE_DE_FABRICACIÓN: " +
+            throw runtime_error("Invalid value for ARRANQUE_DE_FABRICACION: " +
                                 value);
         }
     }
@@ -204,7 +204,7 @@ class ConfigValidator {
 
 const vector<string> ConfigValidator::KNOWN_VALVE_KEYS = create_known_valve_keys();
 const string ConfigValidator::K_COLOR = "COLOR_A_MEZCLAR";
-const string ConfigValidator::K_ARRANQUE = "ARRANQUE_DE_FABRICACIÓN";
+const string ConfigValidator::K_ARRANQUE = "ARRANQUE_DE_FABRICACION";
 
 class ConfigManager {
   public:
@@ -1021,12 +1021,12 @@ class UserInterface {
         clear_screen();
         cout << "=== Sistema de Mezcla de Pintura Dupont ===" << endl;
         cout << "Color a mezclar: " << config.color_a_mezclar << endl;
-        cout << "Estado de fabricación: " << config.arranque_de_fabricacion
+        cout << "Estado de fabricacion: " << config.arranque_de_fabricacion
              << endl;
         cout << "Lote en proceso: "
-             << (factory.is_batch_in_process() ? "SÍ" : "NO") << endl;
+             << (factory.is_batch_in_process() ? "SI" : "NO") << endl;
         cout << "Vaciado en proceso: "
-             << (factory.is_emptying_in_process() ? "SÍ" : "NO") << endl;
+             << (factory.is_emptying_in_process() ? "SI" : "NO") << endl;
         
         // Show current batch phase
         if (factory.is_batch_in_process()) {
@@ -1043,7 +1043,7 @@ class UserInterface {
         }
         cout << endl;
 
-        cout << "=== Estado de las Líneas de Bombeo ===" << endl;
+        cout << "=== Estado de las Lineas de Bombeo ===" << endl;
         const map<string, PumpLine>& pump_lines = factory.get_all_pump_lines();
         for (map<string, PumpLine>::const_iterator it = pump_lines.begin(); 
              it != pump_lines.end(); ++it) {
@@ -1051,7 +1051,7 @@ class UserInterface {
             show_pump_line_status(pump_line);
         }
 
-        cout << "=== Estado de Válvulas ===" << endl;
+        cout << "=== Estado de Valvulas ===" << endl;
         show_valve_status(factory, config);
 
         cout << "=== Estado del Mezclador ===" << endl;
@@ -1073,7 +1073,7 @@ class UserInterface {
         cout << "  Tiempo objetivo: " << pump.get_target_duration() << "s"
              << endl;
         cout << "  Nivel tanque: " << tank.get_level() << "%" << endl;
-        cout << "  Presión: " << pressure.read_pressure() << " psi" << endl;
+        cout << "  Presion: " << pressure.read_pressure() << " psi" << endl;
         const FlowSwitch& flow_switch = pump_line.get_flow_switch(); // Get the flow switch
         cout << "  Flujo Switch " << flow_switch.get_code() << ": "
              << (flow_switch.is_normal() ? "NORMAL" : "ALARMA") << endl;
@@ -1086,7 +1086,7 @@ class UserInterface {
              it != config.valve_states.end(); ++it) {
             const string& valve_name = it->first;
             const string& config_state = it->second;
-            cout << "Válvula " << valve_name << ": ";
+            cout << "Valvula " << valve_name << ": ";
             cout << "Config=" << config_state;
             
             // Show actual valve state
@@ -1137,28 +1137,28 @@ class ConfigurationUI {
 
     bool prompt_config_repair(const runtime_error &e) {
         ui_.clear_display();
-        cerr << "Ha ocurrido un error leyendo la configuración: " << e.what()
+        cerr << "Ha ocurrido un error leyendo la configuracion: " << e.what()
              << endl;
-        cout << "¿Quieres que se corrija la configuración con un archivo de "
-                "configuración con las configuraciones iniciales? "
+        cout << "Quieres que se corrija la configuracion con un archivo de "
+                "configuracion con las configuraciones iniciales? "
                 "Escribe 'si', o escribe 'no' para cerrar el programa."
              << endl;
 
-        cout << "Tu opción: ";
+        cout << "Tu opcion: ";
         string user_choice;
         cin >> user_choice;
 
         if (user_choice != "si") {
-            cout << "El usuario eligió no reparar la configuración." << endl;
+            cout << "El usuario eligio no reparar la configuracion." << endl;
             return false;
         }
         return true;
     }
 
     void show_config_repair_success() {
-        cout << "El archivo de configuración ha sido escrito en: "
+        cout << "El archivo de configuracion ha sido escrito en: "
              << SystemConstants::CONFIG_FILE_PATH << endl;
-        cout << "Por favor, ajusta la configuración según sea necesario."
+        cout << "Por favor, ajusta la configuracion segun sea necesario."
              << endl;
         cout << "Cuando hayas terminado, presiona Enter para continuar..."
              << endl;
@@ -1167,7 +1167,7 @@ class ConfigurationUI {
     }
 
     void show_config_repair_error(const exception &ex) {
-        cerr << "Error en reparar la configuración: " << ex.what() << endl;
+        cerr << "Error en reparar la configuracion: " << ex.what() << endl;
     }
 
     bool attempt_config_repair() {
@@ -1196,8 +1196,8 @@ class ConfigurationUI {
             } catch (const runtime_error &e) {
                 if (!handle_config_error(e)) {
                     throw runtime_error(
-                        "La configuración no pudo ser corregida con la "
-                        "herramienta de reparación. El programa se cerrará.");
+                        "La configuracion no pudo ser corregida con la "
+                        "herramienta de reparacion. El programa se cerrara.");
                 }
             }
         }
@@ -1221,8 +1221,8 @@ int main() {
             try {
                 user_config = config_ui.handle_config_loading();
             } catch (const runtime_error &e) {
-                cerr << "Error crítico durante el manejo del archivo de "
-                        "configuración: "
+                cerr << "Error critico durante el manejo del archivo de "
+                        "configuracion: "
                      << e.what() << endl;
                 system("pause");
                 return 1;
@@ -1245,7 +1245,7 @@ int main() {
                 } else if (start_command_triggered) { // Else if start was triggered but low level switch is NOT alarm
                     // Add message to user
                     cout << "ADVERTENCIA: No se puede iniciar un nuevo lote." << endl;
-                    cout << "El interruptor de bajo nivel del mezclador NO está en alarma (el tanque no está lo suficientemente vacío)." << endl;
+                    cout << "El interruptor de bajo nivel del mezclador NO esta en alarma (el tanque no esta lo suficientemente vacio)." << endl;
                     cout << "Presione Enter para continuar..." << endl;
                     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                     std::cin.get();
@@ -1257,7 +1257,7 @@ int main() {
                     cout << "Espere a que termine el lote actual antes de iniciar uno nuevo." << endl;
                     cout << "Estado actual: ";
                     if (factory.pump_lines_need_to_pump()) {
-                        cout << "Bombeando líquidos..." << endl;
+                        cout << "Bombeando liquidos..." << endl;
                     } else if (factory.get_mixer_tank().get_mixer_motor().is_running()) {
                         cout << "Mezclando..." << endl;
                     } else if (factory.is_emptying_in_process()) {
@@ -1281,7 +1281,7 @@ int main() {
             Sleep(SystemConstants::ONE_SECOND_IN_MS); // Simulation delay
         }
     } catch (const exception &e) {
-        cerr << "Error crítico en el programa: " << e.what() << endl;
+        cerr << "Error critico en el programa: " << e.what() << endl;
         return 1;
     }
 
