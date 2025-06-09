@@ -408,16 +408,20 @@ class LiquidPump {
         return current_pressure < SystemConstants::LOW_PRESSURE_THRESHOLD;
     }
 
-    bool can_start_pumping(const FlowSwitch &flow_switch, double current_pressure) const {
+    bool can_start_pumping(const FlowSwitch &flow_switch, double current_pressure, 
+                          const Valve &enter_valve, const Valve &exit_valve) const {
         // Pump can start if:
         // 1. Flow switch is in normal state (no alarm)
         // 2. Pressure is below low threshold (20 psi)
         // 3. Pump has a valid target duration
         // 4. Pump hasn't reached its target yet
+        // 5. Both enter and exit valves are open (essential for pump operation)
         return flow_switch.is_normal() && 
                can_start_for_pressure(current_pressure) &&
                target_pump_duration_seconds_ > 0.0 &&
-               pump_elapsed_seconds_ < target_pump_duration_seconds_;
+               pump_elapsed_seconds_ < target_pump_duration_seconds_ &&
+               enter_valve.is_open() && 
+               exit_valve.is_open();
     }
 
   public:
@@ -446,8 +450,13 @@ class LiquidPump {
         return 0.0; // No flow if pump is off or any valve is closed
     }
 
+    // Fixed: Added valve state checking to prevent pumps from starting/restarting
+    // when essential valves (enter/exit) are closed. This ensures pumps only
+    // operate when they can actually function properly.
     void update_pump_state(const FlowSwitch &flow_switch,
-                           double current_pressure) {
+                           double current_pressure,
+                           const Valve &enter_valve,
+                           const Valve &exit_valve) {
         // Check stop conditions first (in order of priority)
         
         // 1. Flow alarm - immediate stop
@@ -471,20 +480,28 @@ class LiquidPump {
         // Check restart conditions based on current stop reason
         if (!is_on_) {
             if (current_state_ == STOPPED_FLOW_ALARM) {
-                // After flow alarm: restart only when flow is normal AND pressure is low
-                // This ensures the flow issue has been resolved before restarting
-                if (flow_switch.is_normal() && can_start_for_pressure(current_pressure)) {
+                // After flow alarm: restart only when flow is normal AND pressure is low AND valves are open
+                // This ensures the flow issue has been resolved and valves are properly configured
+                if (flow_switch.is_normal() && 
+                    can_start_for_pressure(current_pressure) &&
+                    enter_valve.is_open() && 
+                    exit_valve.is_open()) {
                     start();
                 }
             } else if (current_state_ == STOPPED_HIGH_PRESSURE) {
-                // After high pressure: restart when pressure drops below low threshold
+                // After high pressure: restart when pressure drops below low threshold AND valves are open
                 // This implements the 20 psi restart logic from requirements
-                if (can_start_for_pressure(current_pressure)) {
+                if (can_start_for_pressure(current_pressure) &&
+                    enter_valve.is_open() && 
+                    exit_valve.is_open()) {
                     start();
                 }
             } else if (current_state_ == STOPPED_LOW_PRESSURE) {
-                // Initial state or after manual stop: start when pressure allows
-                if (can_start_for_pressure(current_pressure) && flow_switch.is_normal()) {
+                // Initial state or after manual stop: start when pressure allows AND valves are open
+                if (can_start_for_pressure(current_pressure) && 
+                    flow_switch.is_normal() &&
+                    enter_valve.is_open() && 
+                    exit_valve.is_open()) {
                     start();
                 }
             }
@@ -679,7 +696,7 @@ PumpLine(const string &pump_code, // Private constructor
         pressure_transmitter_.update_pressure(enter_valve_, exit_valve_, pump_);
         
         // 2. Update pump state based on flow switch status and new pressure readings
-        pump_.update_pump_state(flow_switch_, pressure_transmitter_.read_pressure());
+        pump_.update_pump_state(flow_switch_, pressure_transmitter_.read_pressure(), enter_valve_, exit_valve_);
 
         // 3. Increment elapsed time if pump is (still) running after state update
         if (pump_.is_on()) {
@@ -1110,8 +1127,11 @@ class Factory {
 
     bool all_required_pumps_completed() const {
         // Check if all pumps that have a target have either:
-        // 1. Reached their target duration, OR
+        // 1. Reached their target duration (STOPPED_TARGET_REACHED), OR
         // 2. Are permanently unable to continue (valves closed, etc.)
+        // 
+        // IMPORTANT: Pumps that are temporarily stopped (flow alarms, pressure issues)
+        // should NOT be considered completed, as they may restart and continue pumping
         
         for (map<string, PumpLine>::const_iterator it = pump_lines_.begin(); 
              it != pump_lines_.end(); ++it) {
@@ -1123,22 +1143,33 @@ class Factory {
                 continue;
             }
             
-            // Check if this pump has completed its target
-            if (pump.get_elapsed_seconds() >= pump.get_target_duration()) {
-                continue; // This pump is done
+            // Check if this pump has actually completed its target
+            if (pump.get_state() == STOPPED_TARGET_REACHED) {
+                continue; // This pump is truly done
             }
             
-            // Check if pump is prevented from continuing due to valve configuration
+            // Check if pump is permanently prevented from continuing due to valve configuration
             if (!pump_line.get_enter_valve().is_open() || !pump_line.get_exit_valve().is_open()) {
                 // Pump can't continue due to closed valves - consider it "completed" for mixing purposes
                 continue;
             }
             
-            // If we get here, this pump still has work to do and can potentially do it
-            return false;
+            // If pump is temporarily stopped (flow alarm, pressure issues) but hasn't reached target,
+            // it should not be considered completed as it may restart
+            if (pump.get_state() == STOPPED_FLOW_ALARM || 
+                pump.get_state() == STOPPED_HIGH_PRESSURE || 
+                pump.get_state() == STOPPED_LOW_PRESSURE) {
+                // Pump is paused but could potentially restart - not completed
+                return false;
+            }
+            
+            // If pump is currently running and hasn't reached target, it's not completed
+            if (pump.get_state() == RUNNING && pump.get_elapsed_seconds() < pump.get_target_duration()) {
+                return false;
+            }
         }
         
-        return true; // All required pumps are completed or unable to continue
+        return true; // All required pumps are completed or permanently unable to continue
     }
 
     void update_mix() {
