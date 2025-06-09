@@ -329,9 +329,14 @@ class FlowSwitch {
         }
     }
 
-    void evaluate_status(double flow_rate) {
-        status_ = (flow_rate > 0) ? SystemConstants::NORMAL_STATUS
-                                  : SystemConstants::ALARM_STATUS;
+    void evaluate_status(double flow_rate, bool pump_should_be_flowing) {
+        // Flow switch only goes to ALARM if pump should be flowing but isn't
+        // If pump is intentionally off, flow switch stays NORMAL
+        if (pump_should_be_flowing && flow_rate == 0) {
+            status_ = SystemConstants::ALARM_STATUS;
+        } else {
+            status_ = SystemConstants::NORMAL_STATUS;
+        }
     }
 
     const string &get_code() const { return code_; }
@@ -585,10 +590,18 @@ PumpLine(const string &pump_code, // Private constructor
 
     void update_system_state() {
         double physical_flow = 0.0;
+        bool pump_should_be_flowing = false;
+        
         if (pump_.is_on() && enter_valve_.is_open() && exit_valve_.is_open()) {
             physical_flow = pump_.get_flow_rate();
+            pump_should_be_flowing = true;
+        } else if (pump_.is_on() && (!enter_valve_.is_open() || !exit_valve_.is_open())) {
+            // Pump is on but valves prevent flow - this should trigger flow alarm
+            pump_should_be_flowing = true;
+            physical_flow = 0.0;
         }
-        flow_switch_.evaluate_status(physical_flow); // Use physical_flow
+        
+        flow_switch_.evaluate_status(physical_flow, pump_should_be_flowing);
 
         // Order of updates matters:
         // 1. Update pressure based on current valve/pump states (BEFORE pump state changes for this cycle)
