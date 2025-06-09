@@ -1224,7 +1224,7 @@ class ConfigurationUI {
 };
 
 int main() {
-    setlocale(LC_ALL, "en_US.UTF-8");
+    SetConsoleOutputCP(CP_UTF8);
 
     try {
         bool is_running = true;
